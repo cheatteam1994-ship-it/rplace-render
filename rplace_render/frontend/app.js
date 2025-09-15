@@ -1,195 +1,185 @@
-(function(){
-  const board = document.getElementById('board');
-  const viewport = document.getElementById('viewport');
-  const palette = document.getElementById('palette');
-  const usernameInput = document.getElementById('username');
-  const connectBtn = document.getElementById('connect');
-  const statusSpan = document.getElementById('status');
+const CELL = 1; // ogni pixel è 1x1 nel canvas logico
+let canvasW = 1000;
+let canvasH = 1000;
 
-  const CELL = 1;
-  const COLORS = [
-    '#ffffff','#c0c0c0','#808080','#000000',
-    '#ff0000','#800000','#ffff00','#808000',
-    '#00ff00','#008000','#00ffff','#008080',
-    '#0000ff','#000080','#ff00ff','#800080',
-    '#ffa500','#a52a2a'
-  ];
+const viewport = document.getElementById("viewport");
+const board = document.getElementById("board");
+const ctx = board.getContext("2d");
 
-  let canvasW = 8000;
-  let canvasH = 8000;
-  let scale = 1, targetScale = 1;
-  let offsetX = 0, offsetY = 0, targetOffsetX = 0, targetOffsetY = 0;
-  let selectedColor = COLORS[0];
-  let ws = null;
-  let localCanvas = new Array(canvasW * canvasH).fill(null); // inizializzato subito
-  let dragging = false, dragStart = null;
+// Stato per pan/zoom
+let scale = 1;
+let targetScale = 1;
+let offsetX = 0;
+let offsetY = 0;
+let targetOffsetX = 0;
+let targetOffsetY = 0;
+let dragging = false;
+let dragStart = { x: 0, y: 0 };
 
-  function buildPalette() {
-    palette.innerHTML = '';
-    COLORS.forEach(c => {
-      const btn = document.createElement('button');
-      btn.style.background = c;
-      btn.addEventListener('click', () => selectedColor = c);
-      palette.appendChild(btn);
-    });
-  }
-  buildPalette();
+// Stato canvas locale
+let localCanvas = new Uint8Array(canvasW * canvasH);
+localCanvas.fill(0);
 
-  board.width = canvasW;
-  board.height = canvasH;
+// Colore selezionato
+let selectedColor = 1;
 
-  function getMinScale() {
-    return Math.min(viewport.clientWidth / canvasW, viewport.clientHeight / canvasH, 1);
-  }
+// WebSocket
+let ws;
 
-  function centerCanvas() {
-    targetScale = getMinScale();
-    scale = targetScale;
-    targetOffsetX = (viewport.clientWidth - canvasW * scale) / 2;
-    targetOffsetY = (viewport.clientHeight - canvasH * scale) / 2;
-    offsetX = targetOffsetX;
-    offsetY = targetOffsetY;
-  }
+// Inizializzazione
+function init() {
+  board.width = viewport.clientWidth;
+  board.height = viewport.clientHeight;
+
+  // Centra il canvas all'avvio
+  targetScale = 0.8; // zoom iniziale
   centerCanvas();
 
-  function clampOffsets() {
-    const scaledWidth = canvasW * targetScale;
-    const scaledHeight = canvasH * targetScale;
+  connectWS();
+  requestAnimationFrame(draw);
+}
 
-    if (scaledWidth <= viewport.clientWidth) {
-      targetOffsetX = (viewport.clientWidth - scaledWidth) / 2;
-    } else {
-      const minOffsetX = viewport.clientWidth - scaledWidth;
-      targetOffsetX = Math.min(0, Math.max(minOffsetX, targetOffsetX));
-    }
+function centerCanvas() {
+  const scaledWidth = canvasW * CELL * targetScale;
+  const scaledHeight = canvasH * CELL * targetScale;
+  targetOffsetX = (viewport.clientWidth - scaledWidth) / 2;
+  targetOffsetY = (viewport.clientHeight - scaledHeight) / 2;
+}
 
-    if (scaledHeight <= viewport.clientHeight) {
-      targetOffsetY = (viewport.clientHeight - scaledHeight) / 2;
-    } else {
-      const minOffsetY = viewport.clientHeight - scaledHeight;
-      targetOffsetY = Math.min(0, Math.max(minOffsetY, targetOffsetY));
+// Connessione WebSocket
+function connectWS() {
+  ws = new WebSocket(location.origin.replace(/^http/, "ws"));
+  ws.binaryType = "arraybuffer";
+
+  ws.onopen = () => console.log("✅ WS connesso");
+  ws.onmessage = (event) => {
+    const data = JSON.parse(event.data);
+    if (data.type === "init") {
+      canvasW = data.width;
+      canvasH = data.height;
+      localCanvas = new Uint8Array(
+        Uint8Array.from(atob(data.pixels), (c) => c.charCodeAt(0))
+      );
+      console.log("📥 Ricevuto stato iniziale canvas");
     }
+    if (data.type === "pixel") {
+      const idx = data.y * canvasW + data.x;
+      localCanvas[idx] = data.color;
+    }
+  };
+}
+
+// Gestione click
+board.addEventListener("mousedown", (e) => {
+  if (e.button === 2) {
+    dragging = true;
+    dragStart = { x: e.clientX - targetOffsetX, y: e.clientY - targetOffsetY };
+    return;
   }
 
-  function draw() {
-    const ctx = board.getContext('2d');
-    ctx.save();
-    ctx.clearRect(0,0,board.width,board.height);
-    ctx.translate(offsetX, offsetY);
-    ctx.scale(scale, scale);
+  if (!ws || ws.readyState !== WebSocket.OPEN) return;
 
-    // sfondo foglio
-    ctx.fillStyle = '#fff';
-    ctx.fillRect(0,0,canvasW, canvasH);
+  const rect = board.getBoundingClientRect();
+  const x = Math.floor((e.clientX - rect.left - offsetX) / (CELL * scale));
+  const y = Math.floor((e.clientY - rect.top - offsetY) / (CELL * scale));
 
-    // disegno i pixel esistenti
-    for (let i = 0; i < localCanvas.length; i++) {
-      if (localCanvas[i]) {
-        const x = i % canvasW;
-        const y = Math.floor(i / canvasW);
-        ctx.fillStyle = localCanvas[i];
-        ctx.fillRect(x, y, 1, 1);
+  if (x >= 0 && y >= 0 && x < canvasW && y < canvasH) {
+    const idx = y * canvasW + x;
+    localCanvas[idx] = selectedColor;
+    ws.send(JSON.stringify({ type: "set_pixel", x, y, color: selectedColor }));
+  }
+});
+
+window.addEventListener("mouseup", () => (dragging = false));
+
+window.addEventListener("mousemove", (e) => {
+  if (!dragging) return;
+  targetOffsetX = e.clientX - dragStart.x;
+  targetOffsetY = e.clientY - dragStart.y;
+  clampOffsets();
+});
+
+window.addEventListener("wheel", (e) => {
+  const rect = board.getBoundingClientRect();
+  const mouseX = e.clientX - rect.left;
+  const mouseY = e.clientY - rect.top;
+
+  const zoomFactor = 1.1;
+  const prevScale = targetScale;
+
+  if (e.deltaY < 0) targetScale *= zoomFactor;
+  else targetScale /= zoomFactor;
+
+  // Limita lo zoom
+  targetScale = Math.min(Math.max(targetScale, 0.1), 20);
+
+  // Zoom centrato sul puntatore
+  const scaleRatio = targetScale / prevScale;
+  targetOffsetX = mouseX - (mouseX - targetOffsetX) * scaleRatio;
+  targetOffsetY = mouseY - (mouseY - targetOffsetY) * scaleRatio;
+
+  clampOffsets();
+});
+
+// Mantiene il canvas nei limiti
+function clampOffsets() {
+  const scaledWidth = canvasW * CELL * targetScale;
+  const scaledHeight = canvasH * CELL * targetScale;
+
+  const minX = Math.min(0, viewport.clientWidth - scaledWidth);
+  const minY = Math.min(0, viewport.clientHeight - scaledHeight);
+
+  if (scaledWidth < viewport.clientWidth)
+    targetOffsetX = (viewport.clientWidth - scaledWidth) / 2;
+  else targetOffsetX = Math.min(0, Math.max(minX, targetOffsetX));
+
+  if (scaledHeight < viewport.clientHeight)
+    targetOffsetY = (viewport.clientHeight - scaledHeight) / 2;
+  else targetOffsetY = Math.min(0, Math.max(minY, targetOffsetY));
+}
+
+function draw() {
+  // Interpolazione dolce (transizione pan/zoom)
+  scale += (targetScale - scale) * 0.2;
+  offsetX += (targetOffsetX - offsetX) * 0.2;
+  offsetY += (targetOffsetY - offsetY) * 0.2;
+
+  ctx.clearRect(0, 0, board.width, board.height);
+  ctx.save();
+  ctx.translate(offsetX, offsetY);
+  ctx.scale(scale, scale);
+
+  // Sfondo bianco
+  ctx.fillStyle = "#fff";
+  ctx.fillRect(0, 0, canvasW * CELL, canvasH * CELL);
+
+  // Disegna i pixel
+  for (let y = 0; y < canvasH; y++) {
+    for (let x = 0; x < canvasW; x++) {
+      const color = localCanvas[y * canvasW + x];
+      if (color !== 0) {
+        ctx.fillStyle = getColor(color);
+        ctx.fillRect(x * CELL, y * CELL, CELL, CELL);
       }
     }
-
-    // bordo del foglio
-    ctx.strokeStyle = '#000';
-    ctx.lineWidth = 1 / scale;
-    ctx.strokeRect(0, 0, canvasW, canvasH);
-
-    ctx.restore();
   }
 
-  function animate() {
-    scale += (targetScale - scale) * 0.2;
-    offsetX += (targetOffsetX - offsetX) * 0.2;
-    offsetY += (targetOffsetY - offsetY) * 0.2;
-    draw();
-    requestAnimationFrame(animate);
-  }
-  animate();
+  // Bordo del foglio
+  ctx.strokeStyle = "#000";
+  ctx.lineWidth = 1 / scale;
+  ctx.strokeRect(0, 0, canvasW * CELL, canvasH * CELL);
 
-  board.addEventListener('mousedown', e => {
-    if (e.button === 2) {
-      dragging = true;
-      dragStart = {x:e.clientX - targetOffsetX, y:e.clientY - targetOffsetY};
-      return;
-    }
+  ctx.restore();
+  requestAnimationFrame(draw);
+}
 
-    if (!ws || ws.readyState !== WebSocket.OPEN) return;
+function getColor(id) {
+  // Palette semplice
+  const palette = [
+    "#FFFFFF", "#000000", "#FF0000", "#00FF00", "#0000FF",
+    "#FFFF00", "#00FFFF", "#FF00FF", "#888888", "#444444",
+  ];
+  return palette[id] || "#000000";
+}
 
-    const rect = viewport.getBoundingClientRect();
-    const x = Math.floor((e.clientX - rect.left - offsetX)/scale);
-    const y = Math.floor((e.clientY - rect.top - offsetY)/scale);
-
-    if (x>=0 && y>=0 && x<canvasW && y<canvasH) {
-      localCanvas[y*canvasW + x] = selectedColor;
-      ws.send(JSON.stringify({type:'set_pixel', x, y, color:selectedColor}));
-    }
-  });
-
-  board.addEventListener('mousemove', e => {
-    if (dragging) {
-      targetOffsetX = e.clientX - dragStart.x;
-      targetOffsetY = e.clientY - dragStart.y;
-      clampOffsets();
-    }
-  });
-  board.addEventListener('mouseup', () => dragging = false);
-  board.addEventListener('mouseleave', () => dragging = false);
-
-  board.addEventListener('wheel', e => {
-    e.preventDefault();
-    const rect = viewport.getBoundingClientRect();
-    const mouseX = e.clientX - rect.left;
-    const mouseY = e.clientY - rect.top;
-
-    const zoomAmount = e.deltaY * -0.0015;
-    const oldScale = targetScale;
-    let newScale = Math.max(getMinScale(), targetScale + zoomAmount);
-
-    const dx = (mouseX - targetOffsetX) / oldScale;
-    const dy = (mouseY - targetOffsetY) / oldScale;
-
-    targetOffsetX = mouseX - dx * newScale;
-    targetOffsetY = mouseY - dy * newScale;
-
-    targetScale = newScale;
-    clampOffsets();
-  });
-
-  board.addEventListener('contextmenu', e => e.preventDefault());
-
-  function initWS(user) {
-    const q = user ? ('?user='+encodeURIComponent(user)) : '';
-    const BACKEND_WS = (location.protocol==='https:'?'wss://':'ws://') + location.host;
-    ws = new WebSocket(BACKEND_WS + q);
-
-    ws.addEventListener('open', () => {
-      statusSpan.textContent = 'connected';
-      connectBtn.textContent = 'Disconnect';
-    });
-    ws.addEventListener('close', () => {
-      statusSpan.textContent = 'disconnected';
-      connectBtn.textContent = 'Connect';
-    });
-    ws.addEventListener('message', ev => {
-      const msg = JSON.parse(ev.data);
-      if (msg.type==='init') {
-        localCanvas = msg.canvas.slice();
-        draw();
-      } else if (msg.type==='pixel_update') {
-        localCanvas[msg.y*canvasW + msg.x] = msg.color;
-        draw();
-      }
-    });
-  }
-
-  initWS();
-
-  connectBtn.addEventListener('click', () => {
-    if (ws && ws.readyState===WebSocket.OPEN) ws.close();
-    const user = usernameInput.value.trim() || undefined;
-    initWS(user);
-  });
-})();
+init();

@@ -5,17 +5,46 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>rPlace Clone</title>
 <style>
-  body { margin:0; font-family:sans-serif; display:flex; flex-direction:column; align-items:center; }
-  #board { border:1px solid #000; display:block; cursor:crosshair; }
-  #palette { margin:10px; display:flex; flex-wrap:wrap; gap:5px; }
-  #palette button { width:24px; height:24px; border:none; cursor:pointer; }
-  #controls { margin:10px; display:flex; gap:10px; align-items:center; }
+  body {
+    margin:0;
+    font-family:sans-serif;
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+    justify-content:flex-start;
+    height:100vh;
+    background:#f0f0f0;
+  }
+  #board {
+    border:1px solid #000;
+    margin-top:20px;
+    cursor:crosshair;
+    background:#fff;
+  }
+  #controls {
+    margin:10px;
+    display:flex;
+    gap:10px;
+    align-items:center;
+  }
+  #palette {
+    margin:10px;
+    display:flex;
+    flex-wrap:wrap;
+    gap:5px;
+  }
+  #palette button {
+    width:24px;
+    height:24px;
+    border:none;
+    cursor:pointer;
+  }
   #cooldown { color:red; font-weight:bold; }
 </style>
 </head>
 <body>
 
-<canvas id="board"></canvas>
+<canvas id="board" width="1000" height="600"></canvas>
 
 <div id="controls">
   <input id="username" placeholder="Username (facoltativo)">

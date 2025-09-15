@@ -41,9 +41,11 @@
     ctx.translate(offsetX, offsetY);
     ctx.scale(scale, scale);
 
+    // Sfondo bianco
     ctx.fillStyle = '#fff';
     ctx.fillRect(0,0,canvasW*CELL, canvasH*CELL);
 
+    // Pixel
     for (let y=0; y<canvasH; y++) {
       for (let x=0; x<canvasW; x++) {
         const idx = y*canvasW + x;
@@ -51,6 +53,11 @@
         if (c) ctx.fillStyle = c, ctx.fillRect(x*CELL, y*CELL, CELL, CELL);
       }
     }
+
+    // Contorno del foglio
+    ctx.strokeStyle = '#000';
+    ctx.lineWidth = 1 / scale; // rimane sottile anche zoomando
+    ctx.strokeRect(0, 0, canvasW*CELL, canvasH*CELL);
 
     ctx.restore();
   }

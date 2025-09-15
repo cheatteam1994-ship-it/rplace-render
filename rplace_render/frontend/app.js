@@ -9,6 +9,10 @@
   const COLORS = ['#ffffff','#c0c0c0','#808080','#000000','#ff0000','#800000','#ffff00','#808000','#00ff00','#008000','#00ffff','#008080','#0000ff','#000080','#ff00ff','#800080','#ffa500','#a52a2a'];
   const CELL = 6;
 
+  // Canvas centrato layout precedente
+  board.width = 1000;
+  board.height = 600;
+
   let canvasW = 1000;
   let canvasH = 600;
   let scale = 1, targetScale = 1;
@@ -38,8 +42,12 @@
     ctx.clearRect(0,0,board.width,board.height);
     ctx.translate(offsetX, offsetY);
     ctx.scale(scale, scale);
+
+    // Sfondo bianco
     ctx.fillStyle = '#fff';
     ctx.fillRect(0,0,canvasW*CELL, canvasH*CELL);
+
+    // Pixel
     for (let y=0; y<canvasH; y++) {
       for (let x=0; x<canvasW; x++) {
         const idx = y*canvasW + x;
@@ -47,6 +55,12 @@
         if (c) ctx.fillStyle = c, ctx.fillRect(x*CELL, y*CELL, CELL, CELL);
       }
     }
+
+    // Contorno del canvas
+    ctx.strokeStyle = '#000000';
+    ctx.lineWidth = 1;
+    ctx.strokeRect(0,0,canvasW*CELL, canvasH*CELL);
+
     ctx.restore();
   }
 
@@ -59,9 +73,16 @@
   }
   animate();
 
-  // Mouse events per disegnare e pan
+  // Calcolo zoom minimo per vedere tutto
+  function getMinScale() {
+    const scaleX = board.width / (canvasW*CELL);
+    const scaleY = board.height / (canvasH*CELL);
+    return Math.min(scaleX, scaleY, 1); // non ingrandire automaticamente, solo ridurre
+  }
+
+  // Mouse events
   board.addEventListener('mousedown', e => {
-    if (e.button === 2) { // tasto destro per pan
+    if (e.button === 2) {
       dragging = true;
       dragStart = {x:e.clientX - targetOffsetX, y:e.clientY - targetOffsetY};
       return;
@@ -91,17 +112,20 @@
   });
   board.addEventListener('mouseup', e => { dragging = false; });
   board.addEventListener('mouseleave', e => { dragging = false; });
+
   board.addEventListener('wheel', e => {
     e.preventDefault();
     const zoomAmount = e.deltaY * -0.0015;
-    targetScale = Math.min(Math.max(0.5, targetScale + zoomAmount), 10);
+    let newTargetScale = targetScale + zoomAmount;
+    targetScale = Math.max(newTargetScale, getMinScale());
   });
+
   board.addEventListener('contextmenu', e => e.preventDefault());
 
-  // Funzione per creare la WS
+  // Funzione WebSocket
   function initWS(user) {
     const q = user ? ('?user='+encodeURIComponent(user)) : '';
-    const BACKEND_WS = (location.protocol === 'https:' ? 'wss://' : 'ws://') + location.host;
+    const BACKEND_WS = (location.protocol==='https:'?'wss://':'ws://') + location.host;
     ws = new WebSocket(BACKEND_WS + q);
 
     ws.addEventListener('open', () => {
@@ -114,25 +138,24 @@
     });
     ws.addEventListener('message', ev => {
       const msg = JSON.parse(ev.data);
-      if (msg.type === 'init') {
+      if (msg.type==='init') {
         canvasW = msg.width;
         canvasH = msg.height;
         localCanvas = msg.canvas.slice();
         draw();
-      } else if (msg.type === 'pixel_update') {
+      } else if (msg.type==='pixel_update') {
         localCanvas[msg.y*canvasW + msg.x] = msg.color;
         draw();
       }
-      // Ignoriamo cooldown server, perché ora parte subito al click
     });
   }
 
-  // Inizializza WS subito per mostrare la tela
+  // Inizializza WS subito
   initWS();
 
-  // Pulsante Connect per cambiare username
+  // Pulsante Connect
   connectBtn.addEventListener('click', () => {
-    if (ws && ws.readyState === WebSocket.OPEN) ws.close();
+    if (ws && ws.readyState===WebSocket.OPEN) ws.close();
     const user = usernameInput.value.trim() || undefined;
     initWS(user);
   });

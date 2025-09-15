@@ -5,7 +5,7 @@
   const connectBtn = document.getElementById('connect');
   const statusSpan = document.getElementById('status');
 
-  const CELL = 1; // ogni cella è 1px
+  const CELL = 1;
   const COLORS = [
     '#ffffff','#c0c0c0','#808080','#000000',
     '#ff0000','#800000','#ffff00','#808000',
@@ -22,7 +22,8 @@
   let ws = null, localCanvas = [];
   let dragging = false, dragStart = null;
 
-  // Costruzione palette
+  const viewport = document.getElementById('viewport');
+
   function buildPalette() {
     palette.innerHTML = '';
     COLORS.forEach(c => {
@@ -34,11 +35,44 @@
   }
   buildPalette();
 
-  // Canvas = foglio intero
   board.width = canvasW * CELL;
   board.height = canvasH * CELL;
 
-  // Disegno
+  function getMinScale() {
+    const scaleX = viewport.clientWidth / (canvasW*CELL);
+    const scaleY = viewport.clientHeight / (canvasH*CELL);
+    return Math.min(scaleX, scaleY, 1);
+  }
+
+  function centerCanvas() {
+    targetScale = getMinScale();
+    targetOffsetX = (viewport.clientWidth - canvasW * CELL * targetScale) / 2;
+    targetOffsetY = (viewport.clientHeight - canvasH * CELL * targetScale) / 2;
+    offsetX = targetOffsetX;
+    offsetY = targetOffsetY;
+    scale = targetScale;
+  }
+  centerCanvas();
+
+  function clampOffsets() {
+    const scaledWidth = canvasW * CELL * targetScale;
+    const scaledHeight = canvasH * CELL * targetScale;
+
+    if (scaledWidth <= viewport.clientWidth) {
+      targetOffsetX = (viewport.clientWidth - scaledWidth) / 2;
+    } else {
+      const minOffsetX = viewport.clientWidth - scaledWidth;
+      targetOffsetX = Math.min(0, Math.max(minOffsetX, targetOffsetX));
+    }
+
+    if (scaledHeight <= viewport.clientHeight) {
+      targetOffsetY = (viewport.clientHeight - scaledHeight) / 2;
+    } else {
+      const minOffsetY = viewport.clientHeight - scaledHeight;
+      targetOffsetY = Math.min(0, Math.max(minOffsetY, targetOffsetY));
+    }
+  }
+
   function draw() {
     if (!localCanvas.length) return;
     const ctx = board.getContext('2d');
@@ -47,11 +81,9 @@
     ctx.translate(offsetX, offsetY);
     ctx.scale(scale, scale);
 
-    // Sfondo bianco
     ctx.fillStyle = '#fff';
     ctx.fillRect(0,0,canvasW*CELL, canvasH*CELL);
 
-    // Pixel locali
     for (let y=0; y<canvasH; y++) {
       for (let x=0; x<canvasW; x++) {
         const idx = y*canvasW + x;
@@ -63,7 +95,6 @@
       }
     }
 
-    // Bordo foglio
     ctx.strokeStyle = '#000';
     ctx.lineWidth = 1 / scale;
     ctx.strokeRect(0, 0, canvasW*CELL, canvasH*CELL);
@@ -80,35 +111,6 @@
   }
   animate();
 
-  function getMinScale() {
-    const viewport = document.getElementById('viewport');
-    const scaleX = viewport.clientWidth / (canvasW*CELL);
-    const scaleY = viewport.clientHeight / (canvasH*CELL);
-    return Math.min(scaleX, scaleY, 1);
-  }
-
-  // Blocca pan fuori dal foglio
-  function clampOffsets() {
-    const viewport = document.getElementById('viewport');
-    const scaledWidth = canvasW * CELL * targetScale;
-    const scaledHeight = canvasH * CELL * targetScale;
-
-    if (scaledWidth < viewport.clientWidth) {
-      targetOffsetX = (viewport.clientWidth - scaledWidth) / 2;
-    } else {
-      const minOffsetX = viewport.clientWidth - scaledWidth;
-      targetOffsetX = Math.min(0, Math.max(minOffsetX, targetOffsetX));
-    }
-
-    if (scaledHeight < viewport.clientHeight) {
-      targetOffsetY = (viewport.clientHeight - scaledHeight) / 2;
-    } else {
-      const minOffsetY = viewport.clientHeight - scaledHeight;
-      targetOffsetY = Math.min(0, Math.max(minOffsetY, targetOffsetY));
-    }
-  }
-
-  // Eventi mouse
   board.addEventListener('mousedown', e => {
     if (e.button === 2) {
       dragging = true;
@@ -118,9 +120,9 @@
 
     if (!ws || ws.readyState !== WebSocket.OPEN) return;
 
-    const rect = board.getBoundingClientRect();
-    const x = Math.floor((e.clientX - rect.left - offsetX)/(CELL*scale));
-    const y = Math.floor((e.clientY - rect.top - offsetY)/(CELL*scale));
+    const x = Math.floor((e.clientX - viewport.getBoundingClientRect().left - offsetX)/ (CELL*scale));
+    const y = Math.floor((e.clientY - viewport.getBoundingClientRect().top - offsetY)/ (CELL*scale));
+
     if (x>=0 && y>=0 && x<canvasW && y<canvasH) {
       localCanvas[y*canvasW + x] = selectedColor;
       ws.send(JSON.stringify({type:'set_pixel', x, y, color:selectedColor}));
@@ -134,13 +136,12 @@
       clampOffsets();
     }
   });
-  board.addEventListener('mouseup', () => { dragging = false; });
-  board.addEventListener('mouseleave', () => { dragging = false; });
+  board.addEventListener('mouseup', () => dragging = false);
+  board.addEventListener('mouseleave', () => dragging = false);
 
-  // Zoom centrato sul puntatore
   board.addEventListener('wheel', e => {
     e.preventDefault();
-    const rect = board.getBoundingClientRect();
+    const rect = viewport.getBoundingClientRect();
     const mouseX = e.clientX - rect.left;
     const mouseY = e.clientY - rect.top;
 
@@ -161,7 +162,6 @@
 
   board.addEventListener('contextmenu', e => e.preventDefault());
 
-  // WebSocket
   function initWS(user) {
     const q = user ? ('?user='+encodeURIComponent(user)) : '';
     const BACKEND_WS = (location.protocol==='https:'?'wss://':'ws://') + location.host;
@@ -183,6 +183,7 @@
         localCanvas = msg.canvas.slice();
         board.width = canvasW * CELL;
         board.height = canvasH * CELL;
+        centerCanvas();
         draw();
       } else if (msg.type==='pixel_update') {
         localCanvas[msg.y*canvasW + msg.x] = msg.color;

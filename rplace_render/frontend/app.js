@@ -5,11 +5,11 @@
   const connectBtn = document.getElementById('connect');
   const statusSpan = document.getElementById('status');
 
-  const CELL = 6;
   const COLORS = ['#ffffff','#c0c0c0','#808080','#000000','#ff0000','#800000','#ffff00','#808000','#00ff00','#008000','#00ffff','#008080','#0000ff','#000080','#ff00ff','#800080','#ffa500','#a52a2a'];
+  const CELL = 6;
 
   let canvasW = 1000;
-  let canvasH = 1000;
+  let canvasH = 600;
   let scale = 1, targetScale = 1;
   let offsetX = 0, offsetY = 0, targetOffsetX = 0, targetOffsetY = 0;
   let selectedColor = COLORS[0];
@@ -27,10 +27,6 @@
     });
   }
   buildPalette();
-
-  // Canvas coincide col foglio
-  board.width = canvasW * CELL;
-  board.height = canvasH * CELL;
 
   // Disegno
   function draw() {
@@ -54,11 +50,7 @@
       }
     }
 
-    // Contorno del foglio
-    ctx.strokeStyle = '#000';
-    ctx.lineWidth = 1 / scale; // rimane sottile anche zoomando
-    ctx.strokeRect(0, 0, canvasW*CELL, canvasH*CELL);
-
+    // Nessun contorno esterno
     ctx.restore();
   }
 
@@ -72,22 +64,9 @@
   animate();
 
   function getMinScale() {
-    const viewport = document.getElementById('viewport');
-    const scaleX = viewport.clientWidth / (canvasW*CELL);
-    const scaleY = viewport.clientHeight / (canvasH*CELL);
+    const scaleX = board.width / (canvasW*CELL);
+    const scaleY = board.height / (canvasH*CELL);
     return Math.min(scaleX, scaleY, 1);
-  }
-
-  // Limita il pan dentro il viewport
-  function clampOffsets() {
-    const viewport = document.getElementById('viewport');
-    const minOffsetX = Math.min(0, viewport.clientWidth - canvasW * CELL * targetScale);
-    const minOffsetY = Math.min(0, viewport.clientHeight - canvasH * CELL * targetScale);
-    const maxOffsetX = Math.max(0, viewport.clientWidth - canvasW * CELL * targetScale);
-    const maxOffsetY = Math.max(0, viewport.clientHeight - canvasH * CELL * targetScale);
-
-    targetOffsetX = Math.min(maxOffsetX, Math.max(minOffsetX, targetOffsetX));
-    targetOffsetY = Math.min(maxOffsetY, Math.max(minOffsetY, targetOffsetY));
   }
 
   // Mouse events
@@ -113,32 +92,16 @@
     if (dragging) {
       targetOffsetX = e.clientX - dragStart.x;
       targetOffsetY = e.clientY - dragStart.y;
-      clampOffsets();
     }
   });
   board.addEventListener('mouseup', e => { dragging = false; });
   board.addEventListener('mouseleave', e => { dragging = false; });
 
-  // Zoom centrato sul puntatore
   board.addEventListener('wheel', e => {
     e.preventDefault();
-    const rect = board.getBoundingClientRect();
-    const mouseX = e.clientX - rect.left;
-    const mouseY = e.clientY - rect.top;
-
     const zoomAmount = e.deltaY * -0.0015;
-    const oldScale = targetScale;
-    let newScale = targetScale + zoomAmount;
-    newScale = Math.max(newScale, getMinScale());
-
-    const dx = (mouseX - targetOffsetX) / oldScale;
-    const dy = (mouseY - targetOffsetY) / oldScale;
-
-    targetOffsetX = mouseX - dx * newScale;
-    targetOffsetY = mouseY - dy * newScale;
-
-    targetScale = newScale;
-    clampOffsets();
+    let newTargetScale = targetScale + zoomAmount;
+    targetScale = Math.max(newTargetScale, getMinScale());
   });
 
   board.addEventListener('contextmenu', e => e.preventDefault());
@@ -163,8 +126,11 @@
         canvasW = msg.width;
         canvasH = msg.height;
         localCanvas = msg.canvas.slice();
+
+        // Canvas coincide con il foglio
         board.width = canvasW * CELL;
         board.height = canvasH * CELL;
+
         draw();
       } else if (msg.type==='pixel_update') {
         localCanvas[msg.y*canvasW + msg.x] = msg.color;
@@ -173,8 +139,10 @@
     });
   }
 
+  // Avvia WS subito
   initWS();
 
+  // Connect button
   connectBtn.addEventListener('click', () => {
     if (ws && ws.readyState===WebSocket.OPEN) ws.close();
     const user = usernameInput.value.trim() || undefined;

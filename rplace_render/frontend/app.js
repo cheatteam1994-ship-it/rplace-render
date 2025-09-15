@@ -6,7 +6,7 @@
   const statusSpan = document.getElementById('status');
 
   const COLORS = ['#ffffff','#c0c0c0','#808080','#000000','#ff0000','#800000','#ffff00','#808000','#00ff00','#008000','#00ffff','#008080','#0000ff','#000080','#ff00ff','#800080','#ffa500','#a52a2a'];
-  const CELL = 1;
+  const CELL = 6;
 
   let canvasW = 1000;
   let canvasH = 1000;
@@ -28,7 +28,7 @@
   }
   buildPalette();
 
-  // Canvas coincide con il foglio
+  // Canvas coincide col foglio
   board.width = canvasW * CELL;
   board.height = canvasH * CELL;
 
@@ -72,6 +72,17 @@
     return Math.min(scaleX, scaleY, 1);
   }
 
+  // Limita il pan affinché il canvas non esca dalla vista
+  function clampOffsets() {
+    const minOffsetX = Math.min(0, board.width - canvasW * CELL * targetScale);
+    const minOffsetY = Math.min(0, board.height - canvasH * CELL * targetScale);
+    const maxOffsetX = Math.max(0, board.width - canvasW * CELL * targetScale);
+    const maxOffsetY = Math.max(0, board.height - canvasH * CELL * targetScale);
+
+    targetOffsetX = Math.min(maxOffsetX, Math.max(minOffsetX, targetOffsetX));
+    targetOffsetY = Math.min(maxOffsetY, Math.max(minOffsetY, targetOffsetY));
+  }
+
   // Mouse events
   board.addEventListener('mousedown', e => {
     if (e.button === 2) {
@@ -95,6 +106,7 @@
     if (dragging) {
       targetOffsetX = e.clientX - dragStart.x;
       targetOffsetY = e.clientY - dragStart.y;
+      clampOffsets();
     }
   });
   board.addEventListener('mouseup', e => { dragging = false; });
@@ -120,6 +132,8 @@
     targetOffsetY = mouseY - dy * newScale;
 
     targetScale = newScale;
+
+    clampOffsets();
   });
 
   board.addEventListener('contextmenu', e => e.preventDefault());
@@ -145,7 +159,6 @@
         canvasH = msg.height;
         localCanvas = msg.canvas.slice();
 
-        // Canvas coincide col foglio
         board.width = canvasW * CELL;
         board.height = canvasH * CELL;
 

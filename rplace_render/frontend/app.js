@@ -68,7 +68,7 @@ connectBtn.addEventListener('click', ()=>{
   if(ws && ws.readyState===WebSocket.OPEN){ ws.close(); connectBtn.textContent='Connect'; return; }
   const user=usernameInput.value.trim()||undefined;
   const q=user?('?user='+encodeURIComponent(user)):'';
-  const BACKEND_WS="wss://replace-with-your-render-url"; // <-- Modifica con il tuo URL
+  const BACKEND_WS="wss://rplace-render.onrender.com"; // <-- Modifica con il tuo URL
   ws=new WebSocket(BACKEND_WS+q);
   ws.addEventListener('open', ()=>{ statusSpan.textContent='connected'; connectBtn.textContent='Disconnect'; });
   ws.addEventListener('close', ()=>{ statusSpan.textContent='disconnected'; connectBtn.textContent='Connect'; });
@@ -80,3 +80,4 @@ connectBtn.addEventListener('click', ()=>{
   });
 });
 })();
+

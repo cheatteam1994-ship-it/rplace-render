@@ -4,14 +4,9 @@
   const usernameInput = document.getElementById('username');
   const connectBtn = document.getElementById('connect');
   const statusSpan = document.getElementById('status');
-  const cooldownP = document.getElementById('cooldown');
 
   const COLORS = ['#ffffff','#c0c0c0','#808080','#000000','#ff0000','#800000','#ffff00','#808000','#00ff00','#008000','#00ffff','#008080','#0000ff','#000080','#ff00ff','#800080','#ffa500','#a52a2a'];
   const CELL = 6;
-
-  // Canvas centrato layout precedente
-  board.width = 1000;
-  board.height = 600;
 
   let canvasW = 1000;
   let canvasH = 600;
@@ -19,7 +14,6 @@
   let offsetX = 0, offsetY = 0, targetOffsetX = 0, targetOffsetY = 0;
   let selectedColor = COLORS[0];
   let ws = null, localCanvas = [];
-  let canDraw = true;
   let dragging = false, dragStart = null;
 
   // Palette
@@ -56,11 +50,7 @@
       }
     }
 
-    // Contorno del canvas
-    ctx.strokeStyle = '#000000';
-    ctx.lineWidth = 1;
-    ctx.strokeRect(0,0,canvasW*CELL, canvasH*CELL);
-
+    // Nessun contorno esterno
     ctx.restore();
   }
 
@@ -73,11 +63,10 @@
   }
   animate();
 
-  // Calcolo zoom minimo per vedere tutto
   function getMinScale() {
     const scaleX = board.width / (canvasW*CELL);
     const scaleY = board.height / (canvasH*CELL);
-    return Math.min(scaleX, scaleY, 1); // non ingrandire automaticamente, solo ridurre
+    return Math.min(scaleX, scaleY, 1);
   }
 
   // Mouse events
@@ -88,7 +77,7 @@
       return;
     }
 
-    if (!canDraw || !ws || ws.readyState !== WebSocket.OPEN) return;
+    if (!ws || ws.readyState !== WebSocket.OPEN) return;
 
     const rect = board.getBoundingClientRect();
     const x = Math.floor((e.clientX - rect.left - offsetX)/(CELL*scale));
@@ -96,11 +85,6 @@
     if (x>=0 && y>=0 && x<canvasW && y<canvasH) {
       localCanvas[y*canvasW + x] = selectedColor;
       ws.send(JSON.stringify({type:'set_pixel', x, y, color:selectedColor}));
-
-      // Cooldown immediato 5s
-      canDraw = false;
-      cooldownP.textContent = 'Cooldown 5s';
-      setTimeout(()=>{ canDraw = true; cooldownP.textContent=''; }, 5000);
     }
   });
 
@@ -122,7 +106,7 @@
 
   board.addEventListener('contextmenu', e => e.preventDefault());
 
-  // Funzione WebSocket
+  // WebSocket
   function initWS(user) {
     const q = user ? ('?user='+encodeURIComponent(user)) : '';
     const BACKEND_WS = (location.protocol==='https:'?'wss://':'ws://') + location.host;
@@ -142,6 +126,11 @@
         canvasW = msg.width;
         canvasH = msg.height;
         localCanvas = msg.canvas.slice();
+
+        // Canvas coincide con il foglio
+        board.width = canvasW * CELL;
+        board.height = canvasH * CELL;
+
         draw();
       } else if (msg.type==='pixel_update') {
         localCanvas[msg.y*canvasW + msg.x] = msg.color;
@@ -150,10 +139,10 @@
     });
   }
 
-  // Inizializza WS subito
+  // Avvia WS subito
   initWS();
 
-  // Pulsante Connect
+  // Connect button
   connectBtn.addEventListener('click', () => {
     if (ws && ws.readyState===WebSocket.OPEN) ws.close();
     const user = usernameInput.value.trim() || undefined;

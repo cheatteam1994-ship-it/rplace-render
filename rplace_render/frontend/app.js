@@ -24,9 +24,7 @@ let ws;
 
 // Palette colori
 const palette = [
-  "#FFFFFF", "#000000", "#FF0000", "#00FF00", "#0000FF",
-  "#FFFF00", "#00FFFF", "#FF00FF", "#888888", "#444444",
-];
+  ['#ffffff','#c0c0c0','#808080','#000000','#ff0000','#800000','#ffff00','#808000','#00ff00','#008000','#00ffff','#008080','#0000ff','#000080','#ff00ff','#800080','#ffa500','#a52a2a'];
 
 function init() {
   board.width = viewport.clientWidth;
@@ -190,3 +188,4 @@ function draw() {
 }
 
 init();
+

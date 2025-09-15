@@ -9,6 +9,10 @@
   const COLORS = ['#ffffff','#c0c0c0','#808080','#000000','#ff0000','#800000','#ffff00','#808000','#00ff00','#008000','#00ffff','#008080','#0000ff','#000080','#ff00ff','#800080','#ffa500','#a52a2a'];
   const CELL = 6;
 
+  // Canvas responsivo
+  board.width = window.innerWidth * 0.95;
+  board.height = window.innerHeight * 0.85;
+
   let canvasW = 1000;
   let canvasH = 600;
   let scale = 1, targetScale = 1;
@@ -59,13 +63,14 @@
   }
   animate();
 
-  // Mouse per disegnare e pan
+  // Mouse events per disegnare e pan
   board.addEventListener('mousedown', e => {
-    if (e.button === 2) {
+    if (e.button === 2) { // tasto destro per pan
       dragging = true;
       dragStart = {x:e.clientX - targetOffsetX, y:e.clientY - targetOffsetY};
       return;
     }
+
     if (!canDraw || !ws || ws.readyState !== WebSocket.OPEN) return;
 
     const rect = board.getBoundingClientRect();
@@ -74,6 +79,11 @@
     if (x>=0 && y>=0 && x<canvasW && y<canvasH) {
       localCanvas[y*canvasW + x] = selectedColor;
       ws.send(JSON.stringify({type:'set_pixel', x, y, color:selectedColor}));
+
+      // Cooldown immediato 5s
+      canDraw = false;
+      cooldownP.textContent = 'Cooldown 5s';
+      setTimeout(()=>{ canDraw = true; cooldownP.textContent=''; }, 5000);
     }
   });
 
@@ -116,22 +126,17 @@
       } else if (msg.type === 'pixel_update') {
         localCanvas[msg.y*canvasW + msg.x] = msg.color;
         draw();
-      } else if (msg.type === 'cooldown') {
-        canDraw = false;
-        cooldownP.textContent = 'Cooldown '+Math.ceil(msg.wait/1000)+'s';
-        setTimeout(()=>{ canDraw = true; cooldownP.textContent=''; }, msg.wait);
       }
+      // Ignoriamo cooldown server, perché ora parte subito al click
     });
   }
 
-  // Inizializza WS automaticamente per mostrare la tela a tutti
+  // Inizializza WS subito per mostrare la tela
   initWS();
 
   // Pulsante Connect per cambiare username
   connectBtn.addEventListener('click', () => {
-    if (ws && ws.readyState === WebSocket.OPEN) {
-      ws.close();
-    }
+    if (ws && ws.readyState === WebSocket.OPEN) ws.close();
     const user = usernameInput.value.trim() || undefined;
     initWS(user);
   });

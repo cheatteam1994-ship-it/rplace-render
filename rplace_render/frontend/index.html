@@ -1,91 +1,21 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="it">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>rPlace Clone</title>
-<style>
-  html, body {
-    margin: 0;
-    padding: 0;
-    height: 100%;
-    width: 100%;
-    background: #ddd;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    font-family: sans-serif;
-    user-select: none;
-  }
-
-  #palette {
-    margin: 10px 0;
-    display: flex;
-    flex-wrap: wrap;
-    justify-content: center;
-  }
-
-  #palette button {
-    width: 24px;
-    height: 24px;
-    margin: 2px;
-    border: 1px solid #000;
-    cursor: pointer;
-  }
-
-  #container {
-    position: relative;
-    display: flex;
-    justify-content: center;
-    align-items: center;
-  }
-
-  #viewport {
-    width: 800px;
-    height: 800px;
-    overflow: hidden;
-    background: #fff;
-    border: 2px solid #000;
-    box-sizing: border-box;
-    position: relative;
-  }
-
-  canvas#board {
-    display: block;
-    background: #fff;
-    cursor: crosshair;
-  }
-
-  #controls {
-    margin-top: 10px;
-    display: flex;
-    align-items: center;
-    gap: 5px;
-  }
-
-  #controls input {
-    width: 120px;
-    padding: 4px;
-  }
-
-  #controls button {
-    padding: 4px 8px;
-    cursor: pointer;
-  }
-</style>
+  <meta charset="UTF-8">
+  <title>rPlace </title>
+  <link rel="stylesheet" href="style.css">
 </head>
 <body>
-  <div id="palette"></div>
-  <div id="container">
-    <div id="viewport">
-      <canvas id="board"></canvas>
-    </div>
+  <h1>🎨 rPlace Clone</h1>
+
+  <!-- Barra colori -->
+  <div id="color-bar"></div>
+
+  <!-- Viewport -->
+  <div id="viewport">
+    <canvas id="board"></canvas>
   </div>
-  <div id="controls">
-    <input type="text" id="username" placeholder="Username">
-    <button id="connect">Connect</button>
-    <span id="status">disconnected</span>
-  </div>
+
   <script src="app.js"></script>
 </body>
 </html>

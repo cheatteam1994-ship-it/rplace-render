@@ -6,10 +6,10 @@
   const statusSpan = document.getElementById('status');
 
   const COLORS = ['#ffffff','#c0c0c0','#808080','#000000','#ff0000','#800000','#ffff00','#808000','#00ff00','#008000','#00ffff','#008080','#0000ff','#000080','#ff00ff','#800080','#ffa500','#a52a2a'];
-  const CELL = 6;
+  const CELL = 1;
 
   let canvasW = 1000;
-  let canvasH = 600;
+  let canvasH = 1000;
   let scale = 1, targetScale = 1;
   let offsetX = 0, offsetY = 0, targetOffsetX = 0, targetOffsetY = 0;
   let selectedColor = COLORS[0];
@@ -27,6 +27,10 @@
     });
   }
   buildPalette();
+
+  // Canvas coincide con il foglio
+  board.width = canvasW * CELL;
+  board.height = canvasH * CELL;
 
   // Disegno
   function draw() {
@@ -50,7 +54,6 @@
       }
     }
 
-    // Nessun contorno esterno
     ctx.restore();
   }
 
@@ -97,11 +100,26 @@
   board.addEventListener('mouseup', e => { dragging = false; });
   board.addEventListener('mouseleave', e => { dragging = false; });
 
+  // Zoom centrato sul puntatore
   board.addEventListener('wheel', e => {
     e.preventDefault();
+
+    const rect = board.getBoundingClientRect();
+    const mouseX = e.clientX - rect.left;
+    const mouseY = e.clientY - rect.top;
+
     const zoomAmount = e.deltaY * -0.0015;
-    let newTargetScale = targetScale + zoomAmount;
-    targetScale = Math.max(newTargetScale, getMinScale());
+    const oldScale = targetScale;
+    let newScale = targetScale + zoomAmount;
+    newScale = Math.max(newScale, getMinScale());
+
+    const dx = (mouseX - targetOffsetX) / oldScale;
+    const dy = (mouseY - targetOffsetY) / oldScale;
+
+    targetOffsetX = mouseX - dx * newScale;
+    targetOffsetY = mouseY - dy * newScale;
+
+    targetScale = newScale;
   });
 
   board.addEventListener('contextmenu', e => e.preventDefault());
@@ -127,7 +145,7 @@
         canvasH = msg.height;
         localCanvas = msg.canvas.slice();
 
-        // Canvas coincide con il foglio
+        // Canvas coincide col foglio
         board.width = canvasW * CELL;
         board.height = canvasH * CELL;
 

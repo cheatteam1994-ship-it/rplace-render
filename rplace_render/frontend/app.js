@@ -5,8 +5,8 @@
   const connectBtn = document.getElementById('connect');
   const statusSpan = document.getElementById('status');
 
-  const COLORS = ['#ffffff','#c0c0c0','#808080','#000000','#ff0000','#800000','#ffff00','#808000','#00ff00','#008000','#00ffff','#008080','#0000ff','#000080','#ff00ff','#800080','#ffa500','#a52a2a'];
   const CELL = 6;
+  const COLORS = ['#ffffff','#c0c0c0','#808080','#000000','#ff0000','#800000','#ffff00','#808000','#00ff00','#008000','#00ffff','#008080','#0000ff','#000080','#ff00ff','#800080','#ffa500','#a52a2a'];
 
   let canvasW = 1000;
   let canvasH = 1000;
@@ -41,11 +41,9 @@
     ctx.translate(offsetX, offsetY);
     ctx.scale(scale, scale);
 
-    // Sfondo bianco
     ctx.fillStyle = '#fff';
     ctx.fillRect(0,0,canvasW*CELL, canvasH*CELL);
 
-    // Pixel
     for (let y=0; y<canvasH; y++) {
       for (let x=0; x<canvasW; x++) {
         const idx = y*canvasW + x;
@@ -67,17 +65,19 @@
   animate();
 
   function getMinScale() {
-    const scaleX = board.width / (canvasW*CELL);
-    const scaleY = board.height / (canvasH*CELL);
+    const viewport = document.getElementById('viewport');
+    const scaleX = viewport.clientWidth / (canvasW*CELL);
+    const scaleY = viewport.clientHeight / (canvasH*CELL);
     return Math.min(scaleX, scaleY, 1);
   }
 
-  // Limita il pan affinché il canvas non esca dalla vista
+  // Limita il pan dentro il viewport
   function clampOffsets() {
-    const minOffsetX = Math.min(0, board.width - canvasW * CELL * targetScale);
-    const minOffsetY = Math.min(0, board.height - canvasH * CELL * targetScale);
-    const maxOffsetX = Math.max(0, board.width - canvasW * CELL * targetScale);
-    const maxOffsetY = Math.max(0, board.height - canvasH * CELL * targetScale);
+    const viewport = document.getElementById('viewport');
+    const minOffsetX = Math.min(0, viewport.clientWidth - canvasW * CELL * targetScale);
+    const minOffsetY = Math.min(0, viewport.clientHeight - canvasH * CELL * targetScale);
+    const maxOffsetX = Math.max(0, viewport.clientWidth - canvasW * CELL * targetScale);
+    const maxOffsetY = Math.max(0, viewport.clientHeight - canvasH * CELL * targetScale);
 
     targetOffsetX = Math.min(maxOffsetX, Math.max(minOffsetX, targetOffsetX));
     targetOffsetY = Math.min(maxOffsetY, Math.max(minOffsetY, targetOffsetY));
@@ -115,7 +115,6 @@
   // Zoom centrato sul puntatore
   board.addEventListener('wheel', e => {
     e.preventDefault();
-
     const rect = board.getBoundingClientRect();
     const mouseX = e.clientX - rect.left;
     const mouseY = e.clientY - rect.top;
@@ -132,7 +131,6 @@
     targetOffsetY = mouseY - dy * newScale;
 
     targetScale = newScale;
-
     clampOffsets();
   });
 
@@ -158,10 +156,8 @@
         canvasW = msg.width;
         canvasH = msg.height;
         localCanvas = msg.canvas.slice();
-
         board.width = canvasW * CELL;
         board.height = canvasH * CELL;
-
         draw();
       } else if (msg.type==='pixel_update') {
         localCanvas[msg.y*canvasW + msg.x] = msg.color;
@@ -170,10 +166,8 @@
     });
   }
 
-  // Avvia WS subito
   initWS();
 
-  // Connect button
   connectBtn.addEventListener('click', () => {
     if (ws && ws.readyState===WebSocket.OPEN) ws.close();
     const user = usernameInput.value.trim() || undefined;

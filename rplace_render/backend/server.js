@@ -1,102 +1,69 @@
-const express = require('express');
-const http = require('http');
-const WebSocket = require('ws');
-const path = require('path');
-
-let Redis;
-try { Redis = require('ioredis'); } catch(e){ Redis = null; }
+const express = require("express");
+const http = require("http");
+const WebSocket = require("ws");
+const path = require("path");
 
 const app = express();
 const server = http.createServer(app);
 const wss = new WebSocket.Server({ server });
 
-const PORT = process.env.PORT || 3000;
-const CANVAS_WIDTH = 500;
-const CANVAS_HEIGHT = 300;
-const COOLDOWN_MS = 5000;
-const REDIS_URL = process.env.REDIS_URL || null;
+const PORT = process.env.PORT || 10000;
 
-// canvas
-let canvas = new Array(CANVAS_WIDTH * CANVAS_HEIGHT).fill(null);
-const lastAction = new Map();
+// Dimensioni del foglio di lavoro
+const CANVAS_SIZE = 8000;
+const canvas = new Uint8Array(CANVAS_SIZE * CANVAS_SIZE);
 
-// Redis
-let redisClient = null, redisPub = null, redisSub = null;
-const REDIS_CHANNEL = 'rplace:pixels';
+// Inizializza il canvas a bianco (colore 0)
+canvas.fill(0);
 
-async function initRedis() {
-  if(!Redis || !REDIS_URL) return;
-  try{
-    redisClient = new Redis(REDIS_URL);
-    redisPub = new Redis(REDIS_URL);
-    redisSub = new Redis(REDIS_URL);
-    redisClient.on('connect', async ()=>{
-      const data = await redisClient.hgetall('rplace:pixels_hash');
-      Object.keys(data).forEach(k=>{
-        const idx = parseInt(k,10);
-        if(!Number.isNaN(idx) && idx>=0 && idx<canvas.length) canvas[idx] = data[k];
-      });
-    });
-    redisSub.subscribe(REDIS_CHANNEL);
-    redisSub.on('message', (channel,msg)=>{
-      if(channel!==REDIS_CHANNEL) return;
-      const m = JSON.parse(msg);
-      const idx = m.y*CANVAS_WIDTH + m.x;
-      if(idx>=0 && idx<canvas.length){
-        canvas[idx] = m.color;
-        broadcast({type:'pixel_update', x:m.x, y:m.y, color:m.color});
-      }
-    });
-  }catch(e){ console.log('Redis error', e); }
-}
+wss.on("connection", (ws) => {
+  console.log("Client connesso");
 
-initRedis();
-
-// serve frontend
-app.use('/', express.static(path.join(__dirname,'..','frontend')));
-
-function broadcast(data){
-  const raw = JSON.stringify(data);
-  wss.clients.forEach(client=>{
-    if(client.readyState===WebSocket.OPEN) client.send(raw);
-  });
-}
-
-wss.on('connection', (ws, req)=>{
-  const url = req.url || '';
-  const params = new URL('http://localhost'+url).searchParams;
-  const user = params.get('user') || 'anon_'+Math.floor(Math.random()*10000);
-  ws.user = user;
-
+  // Invia l'intero stato del canvas al nuovo client
   ws.send(JSON.stringify({
-    type:'init',
-    width:CANVAS_WIDTH,
-    height:CANVAS_HEIGHT,
-    canvas:canvas
+    type: "init",
+    width: CANVAS_SIZE,
+    height: CANVAS_SIZE,
+    pixels: Buffer.from(canvas).toString("base64"),
   }));
 
-  ws.on('message', async message=>{
-    let msg;
-    try{ msg=JSON.parse(message); }catch(e){ return; }
-    if(msg.type==='set_pixel'){
-      const {x,y,color}=msg;
-      if(x<0||y<0||x>=CANVAS_WIDTH||y>=CANVAS_HEIGHT) return;
-      const now = Date.now();
-      const last = lastAction.get(ws.user)||0;
-      if(now-last<COOLDOWN_MS){
-        ws.send(JSON.stringify({type:'cooldown', wait:COOLDOWN_MS-(now-last)}));
-        return;
+  // Ricezione messaggi dal client
+  ws.on("message", (msg) => {
+    try {
+      const data = JSON.parse(msg);
+      if (data.type === "set_pixel") {
+        const index = data.y * CANVAS_SIZE + data.x;
+        if (index >= 0 && index < canvas.length) {
+          canvas[index] = data.color;
+          broadcast({
+            type: "pixel",
+            x: data.x,
+            y: data.y,
+            color: data.color,
+          });
+        }
       }
-      lastAction.set(ws.user, now);
-      const idx = y*CANVAS_WIDTH+x;
-      canvas[idx]=color;
-
-      if(redisClient) await redisClient.hset('rplace:pixels_hash', idx.toString(), color);
-      if(redisPub) redisPub.publish(REDIS_CHANNEL, JSON.stringify({type:'pixel_update',x,y,color}));
-
-      broadcast({type:'pixel_update', x, y, color});
+    } catch (err) {
+      console.error("Errore parsing messaggio:", err);
     }
   });
+
+  ws.on("close", () => console.log("Client disconnesso"));
 });
 
-server.listen(PORT, ()=>{ console.log('Server listening on', PORT); });
+// Funzione per mandare un messaggio a tutti i client connessi
+function broadcast(data) {
+  const msg = JSON.stringify(data);
+  wss.clients.forEach((client) => {
+    if (client.readyState === WebSocket.OPEN) {
+      client.send(msg);
+    }
+  });
+}
+
+// Servi i file statici del frontend
+app.use(express.static(path.join(__dirname, "../frontend")));
+
+server.listen(PORT, () => {
+  console.log(`Server listening on ${PORT}`);
+});

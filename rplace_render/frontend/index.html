@@ -5,56 +5,84 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>rPlace Clone</title>
 <style>
-  body {
-    margin:0;
-    font-family:sans-serif;
-    display:flex;
-    flex-direction:column;
-    align-items:center;
-    justify-content:flex-start;
-    height:100vh;
-    background:#f0f0f0;
+  html, body {
+    margin: 0;
+    padding: 0;
+    overflow: hidden;
+    height: 100%;
+    width: 100%;
+    background: #333;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    user-select: none;
   }
-  #board {
-    border:1px solid #000;
-    margin-top:20px;
-    cursor:crosshair;
-    background:#fff;
+
+  #container {
+    position: relative;
+    width: 100%;
+    height: 100%;
+    display: flex;
+    justify-content: center;
+    align-items: center;
   }
-  #controls {
-    margin:10px;
-    display:flex;
-    gap:10px;
-    align-items:center;
+
+  canvas#board {
+    display: block;
+    background: #fff;
+    cursor: crosshair;
   }
+
   #palette {
-    margin:10px;
-    display:flex;
-    flex-wrap:wrap;
-    gap:5px;
+    position: absolute;
+    top: 10px;
+    left: 10px;
+    display: flex;
+    flex-wrap: wrap;
+    z-index: 10;
   }
+
   #palette button {
-    width:24px;
-    height:24px;
-    border:none;
-    cursor:pointer;
+    width: 24px;
+    height: 24px;
+    margin: 2px;
+    border: 1px solid #000;
+    cursor: pointer;
   }
-  #cooldown { color:red; font-weight:bold; }
+
+  #controls {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    color: #fff;
+    font-family: sans-serif;
+    z-index: 10;
+  }
+
+  #controls input {
+    width: 120px;
+    margin-right: 5px;
+  }
+
+  #controls button {
+    padding: 4px 8px;
+    cursor: pointer;
+  }
 </style>
 </head>
 <body>
+  <div id="container">
+    <canvas id="board"></canvas>
 
-<canvas id="board" width="1000" height="600"></canvas>
+    <div id="palette"></div>
 
-<div id="controls">
-  <input id="username" placeholder="Username (facoltativo)">
-  <button id="connect">Connect</button>
-  <span id="status">disconnected</span>
-  <span id="cooldown"></span>
-</div>
+    <div id="controls">
+      <input type="text" id="username" placeholder="Username">
+      <button id="connect">Connect</button>
+      <span id="status">disconnected</span>
+    </div>
+  </div>
 
-<div id="palette"></div>
-
-<script src="app.js"></script>
+  <script src="app.js"></script>
 </body>
 </html>

@@ -1,5 +1,6 @@
 (function(){
   const board = document.getElementById('board');
+  const viewport = document.getElementById('viewport');
   const palette = document.getElementById('palette');
   const usernameInput = document.getElementById('username');
   const connectBtn = document.getElementById('connect');
@@ -19,10 +20,9 @@
   let scale = 1, targetScale = 1;
   let offsetX = 0, offsetY = 0, targetOffsetX = 0, targetOffsetY = 0;
   let selectedColor = COLORS[0];
-  let ws = null, localCanvas = [];
+  let ws = null;
+  let localCanvas = new Array(canvasW * canvasH).fill(null); // inizializzato subito
   let dragging = false, dragStart = null;
-
-  const viewport = document.getElementById('viewport');
 
   function buildPalette() {
     palette.innerHTML = '';
@@ -35,28 +35,26 @@
   }
   buildPalette();
 
-  board.width = canvasW * CELL;
-  board.height = canvasH * CELL;
+  board.width = canvasW;
+  board.height = canvasH;
 
   function getMinScale() {
-    const scaleX = viewport.clientWidth / (canvasW*CELL);
-    const scaleY = viewport.clientHeight / (canvasH*CELL);
-    return Math.min(scaleX, scaleY, 1);
+    return Math.min(viewport.clientWidth / canvasW, viewport.clientHeight / canvasH, 1);
   }
 
   function centerCanvas() {
     targetScale = getMinScale();
-    targetOffsetX = (viewport.clientWidth - canvasW * CELL * targetScale) / 2;
-    targetOffsetY = (viewport.clientHeight - canvasH * CELL * targetScale) / 2;
+    scale = targetScale;
+    targetOffsetX = (viewport.clientWidth - canvasW * scale) / 2;
+    targetOffsetY = (viewport.clientHeight - canvasH * scale) / 2;
     offsetX = targetOffsetX;
     offsetY = targetOffsetY;
-    scale = targetScale;
   }
   centerCanvas();
 
   function clampOffsets() {
-    const scaledWidth = canvasW * CELL * targetScale;
-    const scaledHeight = canvasH * CELL * targetScale;
+    const scaledWidth = canvasW * targetScale;
+    const scaledHeight = canvasH * targetScale;
 
     if (scaledWidth <= viewport.clientWidth) {
       targetOffsetX = (viewport.clientWidth - scaledWidth) / 2;
@@ -74,38 +72,38 @@
   }
 
   function draw() {
-    if (!localCanvas.length) return;
     const ctx = board.getContext('2d');
     ctx.save();
     ctx.clearRect(0,0,board.width,board.height);
     ctx.translate(offsetX, offsetY);
     ctx.scale(scale, scale);
 
+    // sfondo foglio
     ctx.fillStyle = '#fff';
-    ctx.fillRect(0,0,canvasW*CELL, canvasH*CELL);
+    ctx.fillRect(0,0,canvasW, canvasH);
 
-    for (let y=0; y<canvasH; y++) {
-      for (let x=0; x<canvasW; x++) {
-        const idx = y*canvasW + x;
-        const c = localCanvas[idx];
-        if (c) {
-          ctx.fillStyle = c;
-          ctx.fillRect(x*CELL, y*CELL, CELL, CELL);
-        }
+    // disegno i pixel esistenti
+    for (let i = 0; i < localCanvas.length; i++) {
+      if (localCanvas[i]) {
+        const x = i % canvasW;
+        const y = Math.floor(i / canvasW);
+        ctx.fillStyle = localCanvas[i];
+        ctx.fillRect(x, y, 1, 1);
       }
     }
 
+    // bordo del foglio
     ctx.strokeStyle = '#000';
     ctx.lineWidth = 1 / scale;
-    ctx.strokeRect(0, 0, canvasW*CELL, canvasH*CELL);
+    ctx.strokeRect(0, 0, canvasW, canvasH);
 
     ctx.restore();
   }
 
   function animate() {
-    scale += (targetScale - scale) * 0.18;
-    offsetX += (targetOffsetX - offsetX) * 0.18;
-    offsetY += (targetOffsetY - offsetY) * 0.18;
+    scale += (targetScale - scale) * 0.2;
+    offsetX += (targetOffsetX - offsetX) * 0.2;
+    offsetY += (targetOffsetY - offsetY) * 0.2;
     draw();
     requestAnimationFrame(animate);
   }
@@ -120,8 +118,9 @@
 
     if (!ws || ws.readyState !== WebSocket.OPEN) return;
 
-    const x = Math.floor((e.clientX - viewport.getBoundingClientRect().left - offsetX)/ (CELL*scale));
-    const y = Math.floor((e.clientY - viewport.getBoundingClientRect().top - offsetY)/ (CELL*scale));
+    const rect = viewport.getBoundingClientRect();
+    const x = Math.floor((e.clientX - rect.left - offsetX)/scale);
+    const y = Math.floor((e.clientY - rect.top - offsetY)/scale);
 
     if (x>=0 && y>=0 && x<canvasW && y<canvasH) {
       localCanvas[y*canvasW + x] = selectedColor;
@@ -147,8 +146,7 @@
 
     const zoomAmount = e.deltaY * -0.0015;
     const oldScale = targetScale;
-    let newScale = targetScale + zoomAmount;
-    newScale = Math.max(newScale, getMinScale());
+    let newScale = Math.max(getMinScale(), targetScale + zoomAmount);
 
     const dx = (mouseX - targetOffsetX) / oldScale;
     const dy = (mouseY - targetOffsetY) / oldScale;
@@ -178,12 +176,7 @@
     ws.addEventListener('message', ev => {
       const msg = JSON.parse(ev.data);
       if (msg.type==='init') {
-        canvasW = msg.width;
-        canvasH = msg.height;
         localCanvas = msg.canvas.slice();
-        board.width = canvasW * CELL;
-        board.height = canvasH * CELL;
-        centerCanvas();
         draw();
       } else if (msg.type==='pixel_update') {
         localCanvas[msg.y*canvasW + msg.x] = msg.color;
